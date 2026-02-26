@@ -2,31 +2,49 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
 
+type APIResponse struct {
+	BaseCode string             `json:"base_code"`
+	Rates    map[string]float64 `json:"conversion_rates"`
+}
+
 func main() {
-	exchangeRates := map[string]float64{
-		"RUB": 1,
-		"USD": 80.5,
-		"CNY": 12.2,
-		"UAH": 2.5,
-		"KZT": 5.0,
-	}
+	exchangeRates := getRates()
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("Введите название валюты для перевода в рубли:")
-	fmt.Println("USD	CNY	UAH	KZT")
+	fmt.Println("Введите название валюты которую хотите перевести:")
+	sliceRates := make([]string, 0, len(exchangeRates))
+	for i := range exchangeRates {
+		sliceRates = append(sliceRates, i)
+	}
+	sort.Strings(sliceRates)
+	for i := range sliceRates {
+		fmt.Print(sliceRates[i], " ")
+	}
+	fmt.Println()
+	fmt.Println()
 	scanner.Scan()
-	currency := factoring(scanner.Text())
-	_, ok := exchangeRates[currency]
+	currencyFrom := factoring(scanner.Text())
+	_, ok := exchangeRates[currencyFrom]
 	if !ok {
 		log.Fatal("Такой валюты нет в списке")
 	}
-	fmt.Println("Введите количество денег")
+	fmt.Println("Введите название валюты в какую хотите перевести:")
+	scanner.Scan()
+	currencyTo := factoring(scanner.Text())
+	_, ok = exchangeRates[currencyTo]
+	if !ok {
+		log.Fatal("Такой валюты нет в списке")
+	}
+	fmt.Printf("Введите количество денег из %s в %s\n", currencyFrom, currencyTo)
 	scanner.Scan()
 	valueStr := scanner.Text()
 	valueStr = strings.ReplaceAll(valueStr, ",", ".")
@@ -34,10 +52,27 @@ func main() {
 	if err != nil {
 		log.Fatal("Неправильно введено количество")
 	}
-	result := exchangeRates[currency] * value
-	fmt.Printf("%.1f %s в %s будет %.1f\n", value, currency, "RUB", result)
+	result := exchangeRates[currencyTo] / exchangeRates[currencyFrom] * value
+	fmt.Printf("%.2f %s в %s будет %.2f\n", value, currencyFrom, currencyTo, result)
 }
 
 func factoring(input string) string {
 	return (strings.ToUpper(strings.TrimSpace(input)))
+}
+
+func getRates() map[string]float64 {
+	url := "https://v6.exchangerate-api.com/v6/8b81cb60f3aafcc418bb9185/latest/RUB"
+
+	response, err := http.Get(url)
+	if err != nil {
+		log.Fatal("Api не отвечает")
+	}
+	defer response.Body.Close()
+
+	var data APIResponse
+	err = json.NewDecoder(response.Body).Decode(&data)
+	if err != nil {
+		log.Fatal("Ошибка декодирования JSON")
+	}
+	return data.Rates
 }

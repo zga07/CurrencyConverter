@@ -61,7 +61,11 @@ func factoring(input string) string {
 }
 
 func getRates() map[string]float64 {
-	url := "https://v6.exchangerate-api.com/v6/8b81cb60f3aafcc418bb9185/latest/RUB"
+	apiKey := os.Getenv("EXCHANGE_API_KEY")
+	if apiKey == "" {
+		log.Fatal("API ключ не найден в переменных окружения")
+	}
+	url := fmt.Sprintf("https://v6.exchangerate-api.com/v6/%s/latest/RUB", apiKey)
 
 	response, err := http.Get(url)
 	if err != nil {
